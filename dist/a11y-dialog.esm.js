@@ -350,7 +350,21 @@ function getFocusableChildren(node) {
  */
 function trapTabKey(node, event) {
   var focusableChildren = getFocusableChildren(node);
+
+  // Ensure we include focusable elements in the shadow DOM if one exists
+  var shadowDom = node.querySelector('[data-a11y-dialog-shadow-dom]');
+  if (shadowDom) {
+    focusableChildren = [
+      ...focusableChildren,
+      ...getFocusableChildren(shadowDom.shadowRoot)
+    ];
+  }
+
   var focusedItemIndex = focusableChildren.indexOf(document.activeElement);
+  if (focusedItemIndex === -1 && shadowDom) {
+    // If we can't find the index and we have a shadow DOM, look in there
+    focusedItemIndex = focusableChildren.indexOf(shadowDom.activeElement);
+  }
 
   // If the SHIFT key is being pressed while tabbing (moving backwards) and
   // the currently focused item is the first one, move the focus to the last
