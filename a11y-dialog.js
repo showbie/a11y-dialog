@@ -1,4 +1,5 @@
 import focusableSelectors from 'focusable-selectors'
+import { querySelectorAll } from 'kagekiri'
 
 var TAB_KEY = 9
 var ESCAPE_KEY = 27
@@ -298,7 +299,7 @@ function toArray(collection) {
  * @return {Array<Element>}
  */
 function $$(selector, context) {
-  return toArray((context || document).querySelectorAll(selector))
+  return toArray(querySelectorAll(selector, context || document))
 }
 
 /**
@@ -337,21 +338,12 @@ function getFocusableChildren(node) {
  */
 function trapTabKey(node, event) {
   var focusableChildren = getFocusableChildren(node)
-
-  // Ensure we include focusable elements in the shadow DOM if one exists
-  var shadowDom = node.querySelector('[data-a11y-dialog-shadow-dom]')
-  if (shadowDom) {
-    focusableChildren = [
-      ...focusableChildren,
-      ...getFocusableChildren(shadowDom.shadowRoot),
-    ]
+  var activeElement = document.activeElement
+  // If active element is a shadow DOM, get active selectable element inside
+  if (activeElement.shadowRoot) {
+    activeElement = activeElement.shadowRoot.activeElement
   }
-
-  var focusedItemIndex = focusableChildren.indexOf(document.activeElement)
-  if (focusedItemIndex === -1 && shadowDom) {
-    // If we can't find the index and we have a shadow DOM, look in there
-    focusedItemIndex = focusableChildren.indexOf(shadowDom.activeElement)
-  }
+  var focusedItemIndex = focusableChildren.indexOf(activeElement)
 
   // If the SHIFT key is being pressed while tabbing (moving backwards) and
   // the currently focused item is the first one, move the focus to the last
