@@ -1,5 +1,4 @@
 import focusableSelectors from 'focusable-selectors'
-import { querySelectorAll } from 'kagekiri'
 
 var TAB_KEY = 9
 var ESCAPE_KEY = 27
@@ -296,10 +295,11 @@ function toArray(collection) {
  *
  * @param {String} selector
  * @param {Element} [context = document]
+ * @param {Boolean} deepSelect
  * @return {Array<Element>}
  */
-function $$(selector, context) {
-  return toArray(querySelectorAll(selector, context || document))
+function $$(selector, context, deepSelect = false) {
+  return toArray(querySelectorAll(context || document, selector, deepSelect))
 }
 
 /**
@@ -321,7 +321,7 @@ function moveFocusToDialog(node) {
  * @return {Array<Element>}
  */
 function getFocusableChildren(node) {
-  return $$(focusableSelectors.join(','), node).filter(function (child) {
+  return $$(focusableSelectors.join(','), node, true).filter(function (child) {
     return !!(
       child.offsetWidth ||
       child.offsetHeight ||
@@ -379,6 +379,53 @@ if (typeof document !== 'undefined') {
       window.setTimeout(instantiateDialogs, 16)
     }
   }
+}
+
+function querySelectorAll(context, selector, deepSelect = false) {
+  if (!deepSelect) {
+    // Default query selector behaviour
+    return context.querySelectorAll(selector)
+  }
+
+  // Perform a deep select, which recursively iterates through elements. Ensures
+  // that selectable elements in a shadow DOM are included.
+  // Use Sets to avoid duplicate elements.
+  var resultParents = new Set()
+  var resultElements = new Set()
+
+  // For a given Node, return its children. If the Node is a shadow DOM, use
+  // the proper hierarchy to return its children in the `shadowRoot`.
+  var getElChildren = node => {
+    if (node.shadowRoot) return Array.from(node.shadowRoot.children)
+    return Array.from(node.children)
+  }
+
+  // Iterate through the children of `context` and gather parents of
+  // bottom-most elements.
+  var iterate = node => {
+    let nodeChildren = getElChildren(node)
+    if (nodeChildren.length > 0) {
+      // If there are children, continue the recursive loop.
+      nodeChildren.forEach(child => iterate(child))
+    } else {
+      // Stop loop when there are no further children.
+      // Note that `parentNode` is stored so we can run `querySelectorAll` on
+      // the proper context.
+      resultParents.add(node.parentNode)
+    }
+  }
+
+  iterate(context)
+
+  // Filter children by `selector` to get selectable elements
+  resultParents.forEach(el => {
+    el.querySelectorAll(selector).forEach(selectable => {
+      resultElements.add(selectable)
+    })
+  })
+
+  // Return in expected format
+  return [...resultElements]
 }
 
 export default A11yDialog
