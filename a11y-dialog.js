@@ -84,7 +84,7 @@ A11yDialog.prototype.show = function (event) {
 
   // Keep a reference to the currently focused element to be able to restore
   // it later
-  this._previouslyFocused = document.activeElement
+  this._previouslyFocused = getActiveElement()
   this.$el.removeAttribute('aria-hidden')
   this.shown = true
 
@@ -236,7 +236,7 @@ A11yDialog.prototype._fire = function (type, event) {
 A11yDialog.prototype._bindKeypress = function (event) {
   // This is an escape hatch in case there are nested dialogs, so the keypresses
   // are only reacted to for the most recent one
-  if (!this.$el.contains(document.activeElement)) return
+  if (!hasActiveElement(this.$el)) return
 
   // If the dialog is shown and the ESCAPE key is being pressed, prevent any
   // further effects from the ESCAPE key and hide the dialog, unless its role
@@ -338,12 +338,7 @@ function getFocusableChildren(node) {
  */
 function trapTabKey(node, event) {
   var focusableChildren = getFocusableChildren(node)
-  var activeElement = document.activeElement
-  // If active element is a shadow DOM, get active selectable element inside
-  if (activeElement.shadowRoot) {
-    activeElement = activeElement.shadowRoot.activeElement
-  }
-  var focusedItemIndex = focusableChildren.indexOf(activeElement)
+  var focusedItemIndex = focusableChildren.indexOf(getActiveElement())
 
   // If the SHIFT key is being pressed while tabbing (moving backwards) and
   // the currently focused item is the first one, move the focus to the last
@@ -426,6 +421,41 @@ function querySelectorAll(context, selector, deepSelect = false) {
 
   // Return in expected format
   return [...resultElements]
+}
+
+// Extends base `contains` functionality to include shadow DOMs, by traversing
+// up the DOM in order to confirm a specific context has the active element.
+function hasActiveElement(context) {
+  let activeElement = getActiveElement()
+  let returnVal = false
+
+  while (!returnVal && activeElement) {
+    if (activeElement === context) returnVal = true
+    if (activeElement.host && !activeElement.parentNode) {
+      // Get parent element of shadow DOM
+      activeElement = activeElement.host
+    } else if (activeElement.parentNode) {
+      // Get parent element of Node
+      activeElement = activeElement.parentNode
+    } else {
+      // Terminate the loop
+      activeElement = null
+    }
+  }
+
+  return returnVal
+}
+
+function getActiveElement(root = document) {
+  // https://www.abeautifulsite.net/posts/finding-the-active-element-in-a-shadow-root/
+  const activeEl = root.activeElement
+  if (!activeEl) return null
+
+  if (activeEl.shadowRoot) {
+    return getActiveElement(activeEl.shadowRoot)
+  } else {
+    return activeEl
+  }
 }
 
 export default A11yDialog
