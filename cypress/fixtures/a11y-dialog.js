@@ -377,24 +377,14 @@
     }
   }
 
-  function instantiateDialogs() {
-    $$('[data-a11y-dialog]').forEach(function (node) {
-      new A11yDialog(node);
-    });
-  }
-
-  if (typeof document !== 'undefined') {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', instantiateDialogs);
-    } else {
-      if (window.requestAnimationFrame) {
-        window.requestAnimationFrame(instantiateDialogs);
-      } else {
-        window.setTimeout(instantiateDialogs, 16);
-      }
-    }
-  }
-
+  /**
+   * Extend default `querySelectorAll` to include shadow DOM content, only if
+   * `deepSelect` is true.
+   * @param {node} context 
+   * @param {String} selector 
+   * @param {Boolean} deepSelect 
+   * @returns Array
+   */
   function querySelectorAll(context, selector, deepSelect = false) {
     if (!deepSelect) {
       // Default query selector behaviour
@@ -442,8 +432,12 @@
     return [...resultElements]
   }
 
-  // Extends base `contains` functionality to include shadow DOMs, by traversing
-  // up the DOM in order to confirm a specific context has the active element.
+  /**
+   * Extend default `contains` functionality by traversing up the DOM starting at
+   * the active element to determine if it is in the passed-in context.
+   * @param {node} context 
+   * @returns Boolean
+   */
   function hasActiveElement(context) {
     let activeElement = getActiveElement();
     let returnVal = false;
@@ -462,18 +456,41 @@
       }
     }
 
-    return returnVal;
+    return returnVal
   }
 
+  /**
+   * Return the current active element, including inside any shadow DOM content.
+   * @param {node} root 
+   * @returns node
+   */
   function getActiveElement(root = document) {
     // https://www.abeautifulsite.net/posts/finding-the-active-element-in-a-shadow-root/
     const activeEl = root.activeElement;
-    if (!activeEl) return null;
+    if (!activeEl) return null
 
     if (activeEl.shadowRoot) {
-      return getActiveElement(activeEl.shadowRoot);
+      return getActiveElement(activeEl.shadowRoot)
     } else {
-      return activeEl;
+      return activeEl
+    }
+  }
+
+  function instantiateDialogs() {
+    $$('[data-a11y-dialog]').forEach(function (node) {
+      new A11yDialog(node);
+    });
+  }
+
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', instantiateDialogs);
+    } else {
+      if (window.requestAnimationFrame) {
+        window.requestAnimationFrame(instantiateDialogs);
+      } else {
+        window.setTimeout(instantiateDialogs, 16);
+      }
     }
   }
 
