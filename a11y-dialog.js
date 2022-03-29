@@ -272,8 +272,8 @@ A11yDialog.prototype._maintainFocus = function (event) {
   // See: https://github.com/KittyGiraudel/a11y-dialog/issues/177
   if (
     this.shown &&
-    !event.target.closest('[aria-modal="true"]') &&
-    !event.target.closest('[data-a11y-dialog-ignore-focus-trap]')
+    !closest(this.$el, event.target, '[aria-modal="true"]') &&
+    !closest(this.$el, event.target, '[data-a11y-dialog-ignore-focus-trap]')
   ) {
     moveFocusToDialog(this.$el)
   }
@@ -396,7 +396,9 @@ function querySelectorAll(context, selector, deepSelect = false) {
       // Stop loop when there are no further children.
       // Note that `parentNode` is stored so we can run `querySelectorAll` on
       // the proper context.
-      resultParents.add(node.parentNode)
+      resultParents.add(
+        node.tagName === 'SLOT' ? node.assignedNodes()?.[0] : node.parentNode
+      )
     }
   }
 
@@ -420,12 +422,18 @@ function querySelectorAll(context, selector, deepSelect = false) {
  * @returns Boolean
  */
 function hasActiveElement(context) {
+  let originalContext = context
   let activeElement = getActiveElement()
   let returnVal = false
 
   while (!returnVal && activeElement) {
     if (activeElement === context) returnVal = true
-    if (activeElement.host && !activeElement.parentNode) {
+    if (activeElement.getAttribute('slot')) {
+      activeElement = querySelectorAll(
+        originalContext,
+        `slot[name="${activeElement.getAttribute('slot')}"]`
+      )?.[0]
+    } else if (activeElement.host && !activeElement.parentNode) {
       // Get parent element of shadow DOM
       activeElement = activeElement.host
     } else if (activeElement.parentNode) {
@@ -434,6 +442,33 @@ function hasActiveElement(context) {
     } else {
       // Terminate the loop
       activeElement = null
+    }
+  }
+
+  return returnVal
+}
+
+function closest(element, context, selector) {
+  let currentContext = context
+  let returnVal = false
+  let isSlot
+  while (!returnVal && currentContext && currentContext.tagName !== 'BODY') {
+    isSlot = currentContext.tagName === 'SLOT'
+    if (!isSlot && currentContext.matches(selector)) returnVal = true
+    if (currentContext.host && !currentContext.parentNode) {
+      // Get parent element of shadow DOM
+      currentContext = currentContext.host
+    } else if (currentContext.getAttribute('slot')) {
+      // Get parent element of applied slot
+      currentContext = element.querySelector(
+        `slot[name="${currentContext.getAttribute('slot')}"]`
+      )
+    } else if (currentContext.parentNode) {
+      // Get parent element of Node
+      currentContext = currentContext.parentNode
+    } else {
+      // Terminate the loop
+      currentContext = null
     }
   }
 

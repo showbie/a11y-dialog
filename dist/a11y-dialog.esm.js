@@ -285,8 +285,8 @@ A11yDialog.prototype._maintainFocus = function (event) {
   // See: https://github.com/KittyGiraudel/a11y-dialog/issues/177
   if (
     this.shown &&
-    !event.target.closest('[aria-modal="true"]') &&
-    !event.target.closest('[data-a11y-dialog-ignore-focus-trap]')
+    !closest(this.$el, event.target, '[aria-modal="true"]') &&
+    !closest(this.$el, event.target, '[data-a11y-dialog-ignore-focus-trap]')
   ) {
     moveFocusToDialog(this.$el);
   }
@@ -374,9 +374,9 @@ function trapTabKey(node, event) {
 /**
  * Extend default `querySelectorAll` to include shadow DOM content, only if
  * `deepSelect` is true.
- * @param {node} context 
- * @param {String} selector 
- * @param {Boolean} deepSelect 
+ * @param {node} context
+ * @param {String} selector
+ * @param {Boolean} deepSelect
  * @returns Array
  */
 function querySelectorAll(context, selector, deepSelect = false) {
@@ -409,7 +409,9 @@ function querySelectorAll(context, selector, deepSelect = false) {
       // Stop loop when there are no further children.
       // Note that `parentNode` is stored so we can run `querySelectorAll` on
       // the proper context.
-      resultParents.add(node.parentNode);
+      resultParents.add(
+        node.tagName === 'SLOT' ? node.assignedNodes()?.[0] : node.parentNode
+      );
     }
   };
 
@@ -429,16 +431,22 @@ function querySelectorAll(context, selector, deepSelect = false) {
 /**
  * Extend default `contains` functionality by traversing up the DOM starting at
  * the active element to determine if it is in the passed-in context.
- * @param {node} context 
+ * @param {node} context
  * @returns Boolean
  */
 function hasActiveElement(context) {
+  let originalContext = context;
   let activeElement = getActiveElement();
   let returnVal = false;
 
   while (!returnVal && activeElement) {
     if (activeElement === context) returnVal = true;
-    if (activeElement.host && !activeElement.parentNode) {
+    if (activeElement.getAttribute('slot')) {
+      activeElement = querySelectorAll(
+        originalContext,
+        `slot[name="${activeElement.getAttribute('slot')}"]`
+      )?.[0];
+    } else if (activeElement.host && !activeElement.parentNode) {
       // Get parent element of shadow DOM
       activeElement = activeElement.host;
     } else if (activeElement.parentNode) {
@@ -453,9 +461,36 @@ function hasActiveElement(context) {
   return returnVal
 }
 
+function closest(element, context, selector) {
+  let currentContext = context;
+  let returnVal = false;
+  let isSlot;
+  while (!returnVal && currentContext && currentContext.tagName !== 'BODY') {
+    isSlot = currentContext.tagName === 'SLOT';
+    if (!isSlot && currentContext.matches(selector)) returnVal = true;
+    if (currentContext.host && !currentContext.parentNode) {
+      // Get parent element of shadow DOM
+      currentContext = currentContext.host;
+    } else if (currentContext.getAttribute('slot')) {
+      // Get parent element of applied slot
+      currentContext = element.querySelector(
+        `slot[name="${currentContext.getAttribute('slot')}"]`
+      );
+    } else if (currentContext.parentNode) {
+      // Get parent element of Node
+      currentContext = currentContext.parentNode;
+    } else {
+      // Terminate the loop
+      currentContext = null;
+    }
+  }
+
+  return returnVal
+}
+
 /**
  * Return the current active element, including inside any shadow DOM content.
- * @param {node} root 
+ * @param {node} root
  * @returns node
  */
 function getActiveElement(root = document) {
