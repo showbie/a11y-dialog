@@ -270,10 +270,11 @@ A11yDialog.prototype._maintainFocus = function (event) {
   // with the `data-a11y-dialog-focus-trap-ignore` attribute, move it back to
   // its first focusable child.
   // See: https://github.com/KittyGiraudel/a11y-dialog/issues/177
+  let focusedElement = getActiveElement() // event.target
   if (
     this.shown &&
-    !closest(this.$el, event.target, '[aria-modal="true"]') &&
-    !closest(this.$el, event.target, '[data-a11y-dialog-ignore-focus-trap]')
+    !closest(this.$el, focusedElement, '[aria-modal="true"]') &&
+    !closest(this.$el, focusedElement, '[data-a11y-dialog-ignore-focus-trap]')
   ) {
     moveFocusToDialog(this.$el)
   }
@@ -426,7 +427,7 @@ function hasActiveElement(context) {
   let activeElement = getActiveElement()
   let returnVal = false
 
-  while (!returnVal && activeElement) {
+  while (!returnVal && activeElement && activeElement.tagName !== 'BODY') {
     if (activeElement === context) returnVal = true
     if (activeElement.getAttribute('slot')) {
       activeElement = querySelectorAll(
