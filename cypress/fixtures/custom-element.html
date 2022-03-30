@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Tests — Custom Element</title>
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+
+<body>
+  <main>
+    <h1>Tests — Custom Element</h1>
+  </main>
+
+  <modal-element>
+    <!-- Add slot for customization from consuming block -->
+    <div slot="modal-content">
+      <button type="button" name="button2">Passed-through button</button>
+      <br/>
+      <a href="#" name="link2">Passed-through link</a>
+    </div>
+  </modal-element>
+
+  <script type="text/javascript">
+    customElements.define('modal-element',
+      class extends HTMLElement {
+        constructor() {
+          super();
+
+          // Define default styles and layout
+          let modalNodes = `
+            <style type="text/css">
+              .dialog-container,
+              .dialog-overlay {
+                position: fixed;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                left: 0;
+              }
+              .dialog-container {
+                z-index: 2;
+                display: flex;
+              }
+              .dialog-container[aria-hidden='true'] {
+                display: none;
+              }
+              .dialog-overlay {
+                background-color: rgba(43, 46, 56, 0.9);
+              }
+              .dialog-content {
+                display: flex;
+                flex-direction: column;
+                margin: auto;
+                z-index: 2;
+                position: relative;
+                max-height: 100%;
+                background-color: #fff;
+              }
+            </style>
+            <div
+              class="dialog-container"
+              aria-hidden="true"
+              data-a11y-dialog="my-dialog"
+              aria-labelledby="my-dialog-title"
+            >
+              <div class="dialog-overlay" data-a11y-dialog-hide></div>
+              <div class="dialog-content" role="document">
+                <h1 id="my-dialog-title">Dialog title</h1>
+
+                <button type="button" name="button1">Inline Button</button><br/>
+                <a href="#" name="link1">Inline text link</a><br/>
+                <slot name="modal-content"></slot>
+              </div>
+            </div>
+          `;
+
+          // Convert string to nodes
+          let templateContent = document.createRange().createContextualFragment(
+            modalNodes
+          );
+
+          // Apply nodes to custom element as shadow DOM
+          const shadowRoot = this.attachShadow({mode: 'open'});
+          shadowRoot.appendChild(templateContent);
+        }
+      }
+    );
+  </script>
+
+  <script src="../a11y-dialog.js"></script>
+  <script>
+    // Manually show the dialog as it is in a shadow DOM and does not get
+    // detected automatically
+    let shadowDom = document.querySelector('modal-element').shadowRoot;
+    let element = shadowDom.querySelector('.dialog-container');
+    const dialog = new A11yDialog(element);
+    dialog.show();
+  </script>
+</body>
+
+</html>

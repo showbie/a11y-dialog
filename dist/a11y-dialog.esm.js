@@ -97,7 +97,7 @@ A11yDialog.prototype.show = function (event) {
 
   // Keep a reference to the currently focused element to be able to restore
   // it later
-  this._previouslyFocused = document.activeElement;
+  this._previouslyFocused = getActiveElement();
   this.$el.removeAttribute('aria-hidden');
   this.shown = true;
 
@@ -249,7 +249,7 @@ A11yDialog.prototype._fire = function (type, event) {
 A11yDialog.prototype._bindKeypress = function (event) {
   // This is an escape hatch in case there are nested dialogs, so the keypresses
   // are only reacted to for the most recent one
-  if (!this.$el.contains(document.activeElement)) return
+  if (!hasActiveElement(this.$el)) return
 
   // If the dialog is shown and the ESCAPE key is being pressed, prevent any
   // further effects from the ESCAPE key and hide the dialog, unless its role
@@ -283,10 +283,15 @@ A11yDialog.prototype._maintainFocus = function (event) {
   // with the `data-a11y-dialog-focus-trap-ignore` attribute, move it back to
   // its first focusable child.
   // See: https://github.com/KittyGiraudel/a11y-dialog/issues/177
+  let focusedElement = getActiveElement(); // event.target
   if (
     this.shown &&
-    !event.target.closest('[aria-modal="true"]') &&
-    !event.target.closest('[data-a11y-dialog-ignore-focus-trap]')
+    !isChildOfSelector(this.$el, focusedElement, '[aria-modal="true"]') &&
+    !isChildOfSelector(
+      this.$el,
+      focusedElement,
+      '[data-a11y-dialog-ignore-focus-trap]'
+    )
   ) {
     moveFocusToDialog(this.$el);
   }
@@ -308,10 +313,11 @@ function toArray(collection) {
  *
  * @param {String} selector
  * @param {Element} [context = document]
+ * @param {Boolean} deepSelect
  * @return {Array<Element>}
  */
-function $$(selector, context) {
-  return toArray((context || document).querySelectorAll(selector))
+function $$(selector, context, deepSelect = false) {
+  return toArray(querySelectorAll(context || document, selector, deepSelect))
 }
 
 /**
@@ -333,7 +339,7 @@ function moveFocusToDialog(node) {
  * @return {Array<Element>}
  */
 function getFocusableChildren(node) {
-  return $$(focusableSelectors.join(','), node).filter(function (child) {
+  return $$(focusableSelectors.join(','), node, true).filter(function (child) {
     return !!(
       child.offsetWidth ||
       child.offsetHeight ||
@@ -350,7 +356,7 @@ function getFocusableChildren(node) {
  */
 function trapTabKey(node, event) {
   var focusableChildren = getFocusableChildren(node);
-  var focusedItemIndex = focusableChildren.indexOf(document.activeElement);
+  var focusedItemIndex = focusableChildren.indexOf(getActiveElement());
 
   // If the SHIFT key is being pressed while tabbing (moving backwards) and
   // the currently focused item is the first one, move the focus to the last
@@ -367,6 +373,149 @@ function trapTabKey(node, event) {
   ) {
     focusableChildren[0].focus();
     event.preventDefault();
+  }
+}
+
+/**
+ * Extend default `querySelectorAll` to include shadow DOM content, only if
+ * `deepSelect` is true.
+ * @param {node} context
+ * @param {String} selector
+ * @param {Boolean} deepSelect
+ * @returns Array
+ */
+function querySelectorAll(context, selector, deepSelect = false) {
+  if (!deepSelect) {
+    // Default query selector behaviour
+    return context.querySelectorAll(selector)
+  }
+
+  // Perform a deep select, which recursively iterates through elements. Ensures
+  // that selectable elements in a shadow DOM are included.
+  // Use Sets to avoid duplicate elements.
+  var resultParents = new Set();
+  var resultElements = new Set();
+
+  // For a given Node, return its children. If the Node is a shadow DOM, use
+  // the proper hierarchy to return its children in the `shadowRoot`.
+  var getElChildren = node => {
+    if (node.shadowRoot) return Array.from(node.shadowRoot.children)
+    return Array.from(node.children)
+  };
+
+  // Iterate through the children of `context` and gather parents of
+  // bottom-most elements.
+  var iterate = node => {
+    let nodeChildren = getElChildren(node);
+    if (nodeChildren.length > 0) {
+      // If there are children, continue the recursive loop.
+      nodeChildren.forEach(child => iterate(child));
+    } else {
+      // Stop loop when there are no further children.
+      // Note that `parentNode` is stored so we can run `querySelectorAll` on
+      // the proper context.
+      resultParents.add(
+        node.tagName === 'SLOT' ? node.assignedNodes()?.[0] : node.parentNode
+      );
+    }
+  };
+
+  iterate(context);
+
+  // Filter children by `selector` to get selectable elements
+  resultParents.forEach(el => {
+    el.querySelectorAll(selector).forEach(selectable => {
+      resultElements.add(selectable);
+    });
+  });
+
+  // Return in expected format
+  return [...resultElements]
+}
+
+/**
+ * Extend default `contains` functionality by traversing up the DOM starting at
+ * the active element to determine if it is in the passed-in context.
+ * @param {node} context
+ * @returns Boolean
+ */
+function hasActiveElement(context) {
+  let originalContext = context;
+  let activeElement = getActiveElement();
+  let returnVal = false;
+
+  while (!returnVal && activeElement && activeElement.tagName !== 'BODY') {
+    if (activeElement === context) returnVal = true;
+    if (activeElement.getAttribute('slot')) {
+      activeElement = querySelectorAll(
+        originalContext,
+        `slot[name="${activeElement.getAttribute('slot')}"]`
+      )?.[0];
+    } else if (activeElement.host && !activeElement.parentNode) {
+      // Get parent element of shadow DOM
+      activeElement = activeElement.host;
+    } else if (activeElement.parentNode) {
+      // Get parent element of Node
+      activeElement = activeElement.parentNode;
+    } else {
+      // Terminate the loop
+      activeElement = null;
+    }
+  }
+
+  return returnVal
+}
+
+/**
+ * Reworks default 'closest' behaviour to take into account shadow DOMs.
+ * Returns true if `element` is a child of any element that can be identified
+ * using `selector`, iterating from `context` up to document body if necessary.
+ * @param {node} element
+ * @param {node} context
+ * @param {string} selector
+ * @returns Boolean
+ */
+function isChildOfSelector(element, context, selector) {
+  let currentContext = context;
+  let returnVal = false;
+  let isSlot;
+  while (!returnVal && currentContext && currentContext.tagName !== 'BODY') {
+    isSlot = currentContext.tagName === 'SLOT';
+    if (!isSlot && currentContext.matches(selector)) returnVal = true;
+    if (currentContext.host && !currentContext.parentNode) {
+      // Get parent element of shadow DOM
+      currentContext = currentContext.host;
+    } else if (currentContext.getAttribute('slot')) {
+      // Get parent element of applied slot
+      currentContext = element.querySelector(
+        `slot[name="${currentContext.getAttribute('slot')}"]`
+      );
+    } else if (currentContext.parentNode) {
+      // Get parent element of Node
+      currentContext = currentContext.parentNode;
+    } else {
+      // Terminate the loop
+      currentContext = null;
+    }
+  }
+
+  return returnVal
+}
+
+/**
+ * Return the current active element, including inside any shadow DOM content.
+ * @param {node} root
+ * @returns node
+ */
+function getActiveElement(root = document) {
+  // https://www.abeautifulsite.net/posts/finding-the-active-element-in-a-shadow-root/
+  const activeEl = root.activeElement;
+  if (!activeEl) return null
+
+  if (activeEl.shadowRoot) {
+    return getActiveElement(activeEl.shadowRoot)
+  } else {
+    return activeEl
   }
 }
 
