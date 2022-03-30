@@ -292,8 +292,12 @@
     let focusedElement = getActiveElement(); // event.target
     if (
       this.shown &&
-      !closest(this.$el, focusedElement, '[aria-modal="true"]') &&
-      !closest(this.$el, focusedElement, '[data-a11y-dialog-ignore-focus-trap]')
+      !isChildOfSelector(this.$el, focusedElement, '[aria-modal="true"]') &&
+      !isChildOfSelector(
+        this.$el,
+        focusedElement,
+        '[data-a11y-dialog-ignore-focus-trap]'
+      )
     ) {
       moveFocusToDialog(this.$el);
     }
@@ -468,7 +472,16 @@
     return returnVal
   }
 
-  function closest(element, context, selector) {
+  /**
+   * Reworks default 'closest' behaviour to take into account shadow DOMs.
+   * Returns true if `element` is a child of any element that can be identified
+   * using `selector`, iterating from `context` up to document body if necessary.
+   * @param {node} element
+   * @param {node} context
+   * @param {string} selector
+   * @returns Boolean
+   */
+  function isChildOfSelector(element, context, selector) {
     let currentContext = context;
     let returnVal = false;
     let isSlot;
