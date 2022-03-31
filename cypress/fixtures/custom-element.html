@@ -15,9 +15,9 @@
   <modal-element>
     <!-- Add slot for customization from consuming block -->
     <div slot="modal-content">
-      <button type="button" name="button2">Passed-through button</button>
+      <button type="button" name="button2" data-cy="button2">Passed-through button</button>
       <br/>
-      <a href="#" name="link2">Passed-through link</a>
+      <a href="#" name="link2" data-cy="link2">Passed-through link</a>
     </div>
   </modal-element>
 
@@ -68,8 +68,8 @@
               <div class="dialog-content" role="document">
                 <h1 id="my-dialog-title">Dialog title</h1>
 
-                <button type="button" name="button1">Inline Button</button><br/>
-                <a href="#" name="link1">Inline text link</a><br/>
+                <button type="button" name="button1" data-cy="button1">Inline Button</button><br/>
+                <a href="#" name="link1" data-cy="link1">Inline text link</a><br/>
                 <slot name="modal-content"></slot>
               </div>
             </div>
